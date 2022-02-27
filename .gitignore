@@ -1,0 +1,3 @@
+# Temp folder ignored for git
+./temp
+./temp/*
