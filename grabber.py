@@ -10,23 +10,21 @@ def render_page(url, user):
     session = HTMLSession()
     r = session.get(url)
     print("Rendering Page in Background...")
-    r.html.render(sleep=2, keep_page=True, scrolldown=1)
+    r.html.render(sleep=3, keep_page=True, scrolldown=2)
 
     # We can use .find with a containing attribute to do filtering while gathering - later implementation
     print("Grabbing videos...")
-    videos = r.html.absolute_links
+
+    # Attempt to find views
+    articles = r.html.find('article')
+    articles_links = []
+    for article in articles:
+        articles_links.append("https://twitch.tv" + str(article.find('a')[0].attrs['href'].split('?')[0]))
 
     # Close Session
     session.close()
 
-    # Scrub video links
-    print("Filtering Videos...")
-    filter_keyword = "https://www.twitch.tv/" + user + "/clip/"
-    filtered_list = [n for n in videos if filter_keyword in n]
-    scrubbed_urls = []
-    for url in filtered_list:
-        scrubbed_urls.append(url.split('?')[0])
-    return scrubbed_urls
+    return articles_links
 
 
 def get_mp4_link(url):
@@ -37,56 +35,54 @@ def get_mp4_link(url):
     r.html.render(sleep=1, scrolldown=1)
 
     # Grab video title - defaults to last 16 of url if not found for whatever reason
-    print("Video URL: " + url)
     try:
         video_title = r.html.find('h2', first=True).text
-        print("Clip title: " + video_title)
+        print("\nClip title: " + video_title)
     except AttributeError:
         print("Clip title not found - default is url")
-        video_title = url[:-16]
+        video_title = url[-16:]
 
-    # Grab video link - sometimes nonfunctional
+    # Grab video link - sometimes nonfunctional, issue with HTMLSession
     video_link = r.html.find('video', first=True).attrs['src'].split('?')[0]
-    print(str(r.html.find('video', first=True).attrs))
-    print("Video link: " + str(video_link))
     video_link_split = video_link.split('/')
 
     session.close()
 
     # Attempt to grab download link
-    print("Video link split: " + str(video_link_split))
     try:
         download_link = 'https://clips-media-assets2.twitch.tv/' + str(video_link_split[3])
-        print("Download link: " + download_link)
     except IndexError:
-        print("Parsing Download link failed - failed to grab video tag")
-        print("Expected list of length 3, got: " + str(video_link_split))
+        # r.html.find fails to find the video tag for some reason
         download_link = ''
 
     video_info = {'name': video_title, 'dl_link': download_link}
     return video_info
 
+
 def download_clips(recent_clips, args):
     if not os.path.exists('./temp/' + str(args.user)):
         os.makedirs('./temp/' + str(args.user))
 
-    for idx, url in enumerate(recent_clips):
+    # List of failed video grabs with links so users can download manually
+    failed = {}
+    for idx, url in enumerate(recent_clips, start=1):
         dl_info = get_mp4_link(url)
         if dl_info['dl_link'] == '':
             print("Clip " + str(idx) + " failed to grab video link, skipping.")
+            failed[dl_info['name']] = url
             continue
         print("Downloading clip " + str(idx) + "...")
 
         r = HTMLSession().get(dl_info['dl_link'])
 
         # Scrub link for proper filename usage
-        dl_info['name'] = "".join(x for x in dl_info['name'] if x.isalnum())
+        dl_info['name'] = "".join(x for x in dl_info['name'] if x.isalnum() or x == ' ')
 
         with open('temp/' + str(args.user) + '/' + dl_info['name'] + '.mp4', 'wb') as file:
             file.write(r.content)
         print("Downloaded clip " + str(idx) + " to ./temp/" + str(args.user) + ".")
-    print("Download Finished")
-    session.close()
+    print("\n! Download Finished !")
+    return failed
 
 
 if __name__ == '__main__':
@@ -100,24 +96,30 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--limit', dest='limit', metavar='', required=False, type=int,
                         default=0, help='Limit on how many clips to download at once')
 
+    # Grab arguments
     args = parser.parse_args()
     user = args.user
     timeframe = args.timeframe
     limit = args.limit
 
-
-    # Grab recent clips
+    # Grab recent clips and put into sorted dict by views
     link = "https://www.twitch.tv/" + user + "/clips?filter=clips&range=" + timeframe
     recent_clips = render_page(link, user)
+
+    # ... User has no recent clips in this timeframe
     if len(recent_clips) == 0:
         print("User doesn't have any recent clips.")
         sys.exit(0)
-    # print("Here are " + user + "'s top clips from the past " + timeframe + ":")
-    # print(recent_clips)
 
     # Download clips
+    print("Attempting to download " + str(min(len(recent_clips), limit)) + " clips")
     if limit == 0:
-        download_clips(recent_clips, args)
+        failed = download_clips(recent_clips, args)
     else:
-        print(recent_clips[:limit])
-        download_clips(recent_clips[:limit], args)
+        failed = download_clips(recent_clips[:limit], args)
+
+    # Print failed clips
+    if len(failed) > 0:
+        print("\nHere are clips that failed to download: ")
+        for name, url in failed.items():
+            print(name, ", link: " + url)
