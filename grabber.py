@@ -10,7 +10,7 @@ def render_page(url, user):
     session = HTMLSession()
     r = session.get(url)
     print("Rendering Page in Background...")
-    r.html.render(sleep=1, keep_page=True, scrolldown=1)
+    r.html.render(sleep=2, keep_page=True, scrolldown=1)
 
     # We can use .find with a containing attribute to do filtering while gathering - later implementation
     print("Grabbing videos...")
@@ -29,9 +29,10 @@ def render_page(url, user):
     return scrubbed_urls
 
 
-def get_mp4_link(url, session):
+def get_mp4_link(url):
 
     # Session set-up
+    session = HTMLSession()
     r = session.get(url)
     r.html.render(sleep=1, scrolldown=1)
 
@@ -50,6 +51,8 @@ def get_mp4_link(url, session):
     print("Video link: " + str(video_link))
     video_link_split = video_link.split('/')
 
+    session.close()
+
     # Attempt to grab download link
     print("Video link split: " + str(video_link_split))
     try:
@@ -64,18 +67,17 @@ def get_mp4_link(url, session):
     return video_info
 
 def download_clips(recent_clips, args):
-    session = HTMLSession()
     if not os.path.exists('./temp/' + str(args.user)):
         os.makedirs('./temp/' + str(args.user))
 
     for idx, url in enumerate(recent_clips):
-        dl_info = get_mp4_link(url, session)
+        dl_info = get_mp4_link(url)
         if dl_info['dl_link'] == '':
             print("Clip " + str(idx) + " failed to grab video link, skipping.")
             continue
         print("Downloading clip " + str(idx) + "...")
 
-        r = session.get(dl_info['dl_link'])
+        r = HTMLSession().get(dl_info['dl_link'])
 
         # Scrub link for proper filename usage
         dl_info['name'] = "".join(x for x in dl_info['name'] if x.isalnum())
