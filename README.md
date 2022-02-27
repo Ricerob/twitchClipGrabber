@@ -15,3 +15,9 @@ It's recommended to use Python 3.9+. This script relies on the [Requests-HTML](h
 - Support for catagories, not just streamers
 - Better documentation
 - More argument handling
+- Quality selection
+
+### Notes
+- This script requires a stable and, albeit, fast internet connection. Until it's updated with Async/Await HTMLConnections, if your internet isn't fast enough, it may timeout establishing a connection.
+- Clips are downloaded in the highest quality available, for now. This means downloading a ton of clips at the highest quality may take up a considerable amoutn of space - please utilize the limit parameter.
+- This script is slow. Feel free to contribute any time-saving mechanisms or ideas - I'm new to this library (and Python)!
