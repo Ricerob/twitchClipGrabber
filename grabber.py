@@ -1,7 +1,9 @@
 import sys
 import os
 import argparse
-import time
+from datetime import date
+from moviepy.editor import *
+
 from requests_html import HTMLSession
 
 
@@ -65,6 +67,10 @@ def download_clips(recent_clips, args):
 
     # List of failed video grabs with links so users can download manually
     failed = {}
+
+    today = date.today()
+    videofileclips = []
+
     for idx, url in enumerate(recent_clips, start=1):
         dl_info = get_mp4_link(url)
         if dl_info['dl_link'] == '':
@@ -78,9 +84,21 @@ def download_clips(recent_clips, args):
         # Scrub link for proper filename usage
         dl_info['name'] = "".join(x for x in dl_info['name'] if x.isalnum() or x == ' ')
 
+        # Download video file
         with open('temp/' + str(args.user) + '/' + dl_info['name'] + '.mp4', 'wb') as file:
             file.write(r.content)
+
+        # If a compilation, add to list for later concatenation
+        if args.comp is True:
+            clip = VideoFileClip('temp/' + str(args.user) + '/' + dl_info['name'] + '.mp4')
+            videofileclips.append(clip)
+
         print("Downloaded clip " + str(idx) + " to ./temp/" + str(args.user) + ".")
+
+    # If a compilation, create compilation and download
+    if args.comp is True:
+        compilation = concatenate_videoclips(videofileclips, verbose=None)
+        compilation.write_videofile('temp/' + str(args.user) + '/' + str(today.strftime('%B%d')) + ' comp.mp4')
     print("\n! Download Finished !")
     return failed
 
@@ -95,12 +113,14 @@ if __name__ == '__main__':
                         help='Timeframe for grabbing clips - default is a week')
     parser.add_argument('-l', '--limit', dest='limit', metavar='', required=False, type=int,
                         default=0, help='Limit on how many clips to download at once')
+    parser.add_argument('-cm', '--compilation', dest='comp', required=False, action='store_true')
 
     # Grab arguments
     args = parser.parse_args()
     user = args.user
     timeframe = args.timeframe
     limit = args.limit
+    compilation = args.comp
 
     # Grab recent clips and put into sorted dict by views
     link = "https://www.twitch.tv/" + user + "/clips?filter=clips&range=" + timeframe
