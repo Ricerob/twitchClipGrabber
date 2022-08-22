@@ -44,15 +44,11 @@ def get_mp4_link(url):
         print("Clip title not found - default is url")
         video_title = url[-16:]
 
-    # Grab video link - sometimes nonfunctional, issue with HTMLSession
-    video_link = r.html.find('video', first=True).attrs['src'].split('?')[0]
-    video_link_split = video_link.split('/')
-
     session.close()
 
     # Attempt to grab download link
     try:
-        download_link = 'https://clips-media-assets2.twitch.tv/' + str(video_link_split[3])
+        download_link = r.html.find('video', first=True).attrs['src']
     except IndexError:
         # r.html.find fails to find the video tag for some reason
         download_link = ''
@@ -97,7 +93,7 @@ def download_clips(recent_clips, args):
 
     # If a compilation, create compilation and download
     if args.comp is True:
-        compilation = concatenate_videoclips(videofileclips, verbose=None)
+        compilation = concatenate_videoclips(videofileclips)
         compilation.write_videofile('temp/' + str(args.user) + '/' + str(today.strftime('%B%d')) + ' comp.mp4')
     print("\n! Download Finished !")
     return failed
